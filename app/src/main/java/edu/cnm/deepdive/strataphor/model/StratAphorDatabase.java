@@ -22,6 +22,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Random;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -58,21 +59,28 @@ public abstract class StratAphorDatabase extends RoomDatabase {
     @Override
     public void onCreate(@NonNull SupportSQLiteDatabase db) {
       super.onCreate(db);
-      new PreloadTask()
+      new PreloadTask().execute();
+    }
+
+    @Override
+    public void onOpen(@NonNull SupportSQLiteDatabase db) {
+      super.onOpen(db);
+      StratAphorDatabase database = StratAphorDatabase.getInstance();
+      new BaseFluentAsyncTask<Void, Void, List<Saying>, List<Saying>>()
+          .setPerformer((ignore) -> database.getSayingDao().findAll())
           .setSuccessListener((sayings) -> {
-            //TODO Do something with sayings.
+            RandomSaying.getInstance().getSayings().addAll(sayings);
           })
           .execute();
     }
-
   }
 
   private static class PreloadTask
-      extends BaseFluentAsyncTask<Void, Void, List<Saying>, List<Saying>> {
+      extends BaseFluentAsyncTask<Void, Void, Void, Void> {
 
     @Nullable
     @Override
-    protected List<Saying> perform(Void... voids) throws TaskException {
+    protected Void perform(Void... voids) throws TaskException {
       Context context = StratAphorApplication.getInstance().getApplicationContext();
       StratAphorDatabase database = StratAphorDatabase.getInstance();
       try (
@@ -89,7 +97,7 @@ public abstract class StratAphorDatabase extends RoomDatabase {
           sayings.addAll(loadSayings(sourceId, resourceName));
         }
         database.getSayingDao().insert(sayings);
-        return database.getSayingDao().findAll();
+        return null;
       } catch (IOException e) {
         throw new TaskException(e);
       }
